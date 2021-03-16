@@ -44,6 +44,6 @@ func main() {
 
 	bfs := ROFS{mem}
 	handler := nfshelper.NewNullAuthHandler(bfs)
-	binaryHandler := nfshelper.NewBinaryHandler(handler, bfs)
-	fmt.Printf("%v", nfs.Serve(listener, binaryHandler,nil, nil))
+	cacheHelper := nfshelper.NewCachingHandler(handler, 1024)
+	fmt.Printf("%v", nfs.Serve(listener, cacheHelper,nil, nil))
 }

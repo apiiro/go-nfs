@@ -27,6 +27,6 @@ func main() {
 	bfs := fs.AsBillyFS(0, 0)
 
 	handler := nfshelper.NewNullAuthHandler(bfs)
-	binaryHandler := nfshelper.NewBinaryHandler(handler, bfs)
-	fmt.Printf("%v", nfs.Serve(listener, binaryHandler, nil, nil))
+	cachingHandler := nfshelper.NewCachingHandler(handler, 1024)
+	fmt.Printf("%v", nfs.Serve(listener, cachingHandler, nil, nil))
 }
