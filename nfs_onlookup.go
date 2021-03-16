@@ -3,7 +3,6 @@ package nfs
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/go-git/go-billy/v5"
@@ -39,10 +38,6 @@ func onLookup(ctx context.Context, w *response, userHandle Handler) error {
 	if err != nil {
 		return &NFSStatusError{NFSStatusStale, err}
 	}
-	contents, err := fs.ReadDir(fs.Join(p...))
-	if err != nil {
-		return &NFSStatusError{NFSStatusNotDir, err}
-	}
 
 	// Special cases for "." and ".."
 	if bytes.Equal(obj.Filename, []byte(".")) {
@@ -71,22 +66,16 @@ func onLookup(ctx context.Context, w *response, userHandle Handler) error {
 		return nil
 	}
 
-	// TODO: use sorting rather than linear
-	for _, f := range contents {
-		if bytes.Equal([]byte(f.Name()), obj.Filename) {
-			newPath := append(p, f.Name())
-			newHandle := userHandle.ToHandle(fs, newPath)
-			resp, err := lookupSuccessResponse(newHandle, newPath, p, fs)
-			if err != nil {
-				return &NFSStatusError{NFSStatusServerFault, err}
-			}
-			if err := w.Write(resp); err != nil {
-				return &NFSStatusError{NFSStatusServerFault, err}
-			}
-			return nil
-		}
+	// always assuming we find what we looked-up for
+	filename := string(obj.Filename)
+	newPath := append(p, filename)
+	newHandle := userHandle.ToHandle(fs, newPath)
+	resp, err := lookupSuccessResponse(newHandle, newPath, p, fs)
+	if err != nil {
+		return &NFSStatusError{NFSStatusServerFault, err}
 	}
-
-	fmt.Printf("No file for lookup of %v\n", string(obj.Filename))
-	return &NFSStatusError{NFSStatusNoEnt, os.ErrNotExist}
+	if err := w.Write(resp); err != nil {
+		return &NFSStatusError{NFSStatusServerFault, err}
+	}
+	return nil
 }
