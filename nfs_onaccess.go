@@ -28,7 +28,7 @@ func onAccess(ctx context.Context, w *response, userHandle Handler) error {
 	if err := WritePostOpAttrs(writer, tryStat(fs, path)); err != nil {
 		return &NFSStatusError{NFSStatusServerFault, err}
 	}
-	
+
 	mask = 0777
 
 	if err := xdr.Write(writer, mask); err != nil {
