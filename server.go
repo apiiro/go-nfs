@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log"
 	"net"
+	"os"
 	"time"
 )
 
@@ -108,10 +109,10 @@ func (s *Server) handlerFor(prog uint32, proc uint32) HandleFunc {
 // Serve is a singleton listener paralleling http.Serve
 func Serve(l net.Listener, handler Handler, debugLogger *log.Logger, errorLogger *log.Logger) error {
 	if errorLogger == nil {
-		errorLogger = &log.Logger{}
+		errorLogger = log.New(os.Stderr, "", log.Lshortfile)
 	}
 	if debugLogger == nil {
-		debugLogger = &log.Logger{}
+		debugLogger = log.New(os.Stdout, "", log.Lshortfile)
 	}
 	srv := &Server{Handler: handler, debugLogger: debugLogger, errorLogger: errorLogger}
 	return srv.Serve(l)

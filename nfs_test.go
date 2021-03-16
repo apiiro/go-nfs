@@ -2,7 +2,6 @@ package nfs_test
 
 import (
 	"bytes"
-	"log"
 	"net"
 	"testing"
 
@@ -28,7 +27,7 @@ func TestNFS(t *testing.T) {
 	handler := helpers.NewNullAuthHandler(mem)
 	cacheHelper := helpers.NewBinaryHandler(handler, mem)
 	go func() {
-		_ = nfs.Serve(listener, cacheHelper, &log.Logger{}, &log.Logger{})
+		_ = nfs.Serve(listener, cacheHelper, nil, nil)
 	}()
 
 	c, err := rpc.DialTCP(listener.Addr().Network(), nil, listener.Addr().(*net.TCPAddr).String())
