@@ -1,7 +1,7 @@
 package helpers
 
 import (
-	"github.com/apiiro/go-nfs"
+	"github.com/willscott/go-nfs"
 
 	"github.com/go-git/go-billy/v5"
 	"github.com/google/uuid"
