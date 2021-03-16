@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
+	"log"
 	"net"
 	"time"
 )
@@ -14,6 +15,8 @@ type Server struct {
 	Handler
 	ID [8]byte
 	context.Context
+	debugLogger *log.Logger
+	errorLogger *log.Logger
 }
 
 // RegisterMessageHandler registers a handler for a specific
@@ -83,8 +86,10 @@ func (s *Server) Serve(l net.Listener) error {
 
 func (s *Server) newConn(nc net.Conn) *conn {
 	c := &conn{
-		Server: s,
-		Conn:   nc,
+		Server:      s,
+		Conn:        nc,
+		debugLogger: s.debugLogger,
+		errorLogger: s.errorLogger,
 	}
 	return c
 }
@@ -101,7 +106,7 @@ func (s *Server) handlerFor(prog uint32, proc uint32) HandleFunc {
 }
 
 // Serve is a singleton listener paralleling http.Serve
-func Serve(l net.Listener, handler Handler) error {
-	srv := &Server{Handler: handler}
+func Serve(l net.Listener, handler Handler, debugLogger *log.Logger, errorLogger *log.Logger) error {
+	srv := &Server{Handler: handler, debugLogger: debugLogger, errorLogger: errorLogger}
 	return srv.Serve(l)
 }

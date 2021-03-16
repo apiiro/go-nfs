@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
 
@@ -28,5 +29,5 @@ func main() {
 
 	handler := nfshelper.NewNullAuthHandler(bfs)
 	binaryHandler := nfshelper.NewBinaryHandler(handler, bfs)
-	fmt.Printf("%v", nfs.Serve(listener, binaryHandler))
+	fmt.Printf("%v", nfs.Serve(listener, binaryHandler, &log.Logger{}, &log.Logger{}))
 }

@@ -42,6 +42,8 @@ type conn struct {
 	*Server
 	writeSerializer chan []byte
 	net.Conn
+	debugLogger *log.Logger
+	errorLogger *log.Logger
 }
 
 func (c *conn) serve(ctx context.Context) {
@@ -61,17 +63,17 @@ func (c *conn) serve(ctx context.Context) {
 			}
 			return
 		}
-		log.Printf("request: %v", w.req)
+		c.debugLogger.Printf("request: %v", w.req)
 		err = c.handle(connCtx, w)
 		respErr := w.finish(connCtx)
 		if err != nil {
-			log.Printf("error handling req: %v", err)
+			c.errorLogger.Printf("error handling req: %v", err)
 			// failure to handle at a level needing to close the connection.
 			c.Close()
 			return
 		}
 		if respErr != nil {
-			log.Printf("error sending response: %v", respErr)
+			c.errorLogger.Printf("error sending response: %v", respErr)
 			c.Close()
 			return
 		}
@@ -118,7 +120,7 @@ func (c *conn) serializeWrites(ctx context.Context) {
 func (c *conn) handle(ctx context.Context, w *response) error {
 	handler := c.Server.handlerFor(w.req.Header.Prog, w.req.Header.Proc)
 	if handler == nil {
-		log.Printf("No handler for %d.%d", w.req.Header.Prog, w.req.Header.Proc)
+		c.errorLogger.Printf("No handler for %d.%d", w.req.Header.Prog, w.req.Header.Proc)
 		if err := w.drain(ctx); err != nil {
 			return err
 		}
@@ -129,13 +131,13 @@ func (c *conn) handle(ctx context.Context, w *response) error {
 		return drainErr
 	}
 	if appError != nil && !w.responded {
-		log.Printf("call to %+v failed: %v", handler, appError)
+		c.errorLogger.Printf("call to %+v failed: %v", handler, appError)
 		if err := c.err(ctx, w, appError); err != nil {
 			return err
 		}
 	}
 	if !w.responded {
-		log.Printf("Handler did not indicate response status via writing or erroring")
+		c.errorLogger.Printf("Handler did not indicate response status via writing or erroring")
 		if err := c.err(ctx, w, &ResponseCodeSystemError{}); err != nil {
 			return err
 		}
@@ -289,7 +291,7 @@ func (c *conn) readRequestHeader(ctx context.Context, reader *bufio.Reader) (w *
 		return nil, err
 	}
 	if fragment&(1<<31) == 0 {
-		log.Printf("Warning: haven't implemented fragment reconstruction.\n")
+		c.errorLogger.Printf("Warning: haven't implemented fragment reconstruction.\n")
 		return nil, ErrInputInvalid
 	}
 	reqLen := fragment - uint32(1<<31)
