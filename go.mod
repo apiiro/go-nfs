@@ -1,4 +1,4 @@
-module github.com/willscott/go-nfs
+module github.com/apiiro/go-nfs
 
 go 1.13
 
