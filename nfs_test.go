@@ -25,7 +25,7 @@ func TestNFS(t *testing.T) {
 	_, _ = mem.Create("/test")
 
 	handler := helpers.NewNullAuthHandler(mem)
-	cacheHelper := helpers.NewCachingHandler(handler, 1024)
+	cacheHelper := helpers.NewBinaryHandler(handler, 1024)
 	go func() {
 		_ = nfs.Serve(listener, cacheHelper)
 	}()

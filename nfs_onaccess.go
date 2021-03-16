@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/go-git/go-billy/v5"
 	"github.com/willscott/go-nfs-client/nfs/xdr"
 )
 
@@ -29,10 +28,8 @@ func onAccess(ctx context.Context, w *response, userHandle Handler) error {
 	if err := WritePostOpAttrs(writer, tryStat(fs, path)); err != nil {
 		return &NFSStatusError{NFSStatusServerFault, err}
 	}
-
-	if !billy.CapabilityCheck(fs, billy.WriteCapability) {
-		mask = mask & (1 | 2 | 0x20)
-	}
+	
+	mask = 0777
 
 	if err := xdr.Write(writer, mask); err != nil {
 		return &NFSStatusError{NFSStatusServerFault, err}
