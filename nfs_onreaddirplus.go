@@ -3,10 +3,7 @@ package nfs
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/binary"
-	"sort"
-
 	"github.com/willscott/go-nfs-client/nfs/xdr"
 )
 
@@ -46,10 +43,6 @@ func onReadDirPlus(ctx context.Context, w *response, userHandle Handler) error {
 		return &NFSStatusError{NFSStatusNotDir, err}
 	}
 
-	sort.Slice(contents, func(i, j int) bool {
-		return contents[i].Name() < contents[j].Name()
-	})
-
 	if obj.DirCount < 1024 || obj.MaxCount < 4096 {
 		return &NFSStatusError{NFSStatusTooSmall, nil}
 	}
@@ -58,48 +51,36 @@ func onReadDirPlus(ctx context.Context, w *response, userHandle Handler) error {
 	dirBytes := uint32(0)
 	maxBytes := uint32(100) // conservative overhead measure
 
-	started := (obj.Cookie == 0)
-	everStarted := started
-	//calculate the cookieverifier for this read-dir exercise.
-	//Note: this is an inefficient way to do this for large directories where
-	//paging actually occurs. however, the billy interface doesn't expose the
-	//granularity to do better, either.
-	vHash := sha256.New()
+	isFirstRead := (obj.Cookie == 0)
 
-	for i, c := range contents {
-		if started {
-			handle := userHandle.ToHandle(fs, append(p, c.Name()))
-			attrs := ToFileAttribute(c)
-			attrs.Fileid = binary.BigEndian.Uint64(handle[0:8])
-			entities = append(entities, readDirPlusEntity{
-				FileID:        binary.BigEndian.Uint64(handle[0:8]),
-				Name:          []byte(c.Name()),
-				Cookie:        uint64(i + 3),
-				HasAttributes: 1,
-				Attributes:    attrs,
-				HasHandle:     1,
-				Handle:        handle,
-				Next:          1,
-			})
-			dirBytes += uint32(len(c.Name()) + 20)
-			maxBytes += 512 // TODO: better estimation.
-		} else if uint64(i) == obj.Cookie {
-			started = true
-			everStarted = true
-		}
-		if started && (dirBytes > obj.DirCount || maxBytes > obj.MaxCount || len(entities) > userHandle.HandleLimit()/2) {
-			started = false
-			entities = entities[0 : len(entities)-1]
-		}
-		if _, err := vHash.Write([]byte(c.Name())); err != nil {
-			return &NFSStatusError{NFSStatusServerFault, err}
-		}
+	startIndex := 0
+	if !isFirstRead {
+		startIndex = int(obj.Cookie) - 2
 	}
+	i := startIndex
+	for ; i < len(contents); i++ {
+		content := contents[i]
 
-	verif := vHash.Sum([]byte{})[0:8]
+		dirBytes += uint32(len(content.Name()) + 20)
+		maxBytes += 512 // TODO: better estimation.
 
-	if obj.Cookie != 0 && (binary.BigEndian.Uint64(verif) != obj.CookieVerif || !everStarted) {
-		return &NFSStatusError{NFSStatusBadCookie, nil}
+		if dirBytes > obj.DirCount || maxBytes > obj.MaxCount || len(entities) > userHandle.HandleLimit()/2 {
+			break
+		}
+
+		handle := userHandle.ToHandle(fs, append(p, content.Name()))
+		attrs := ToFileAttribute(content)
+		attrs.Fileid = binary.BigEndian.Uint64(handle[0:8])
+		entities = append(entities, readDirPlusEntity{
+			FileID:        binary.BigEndian.Uint64(handle[0:8]),
+			Name:          []byte(content.Name()),
+			Cookie:        uint64(i + 3),
+			HasAttributes: 1,
+			Attributes:    attrs,
+			HasHandle:     1,
+			Handle:        handle,
+			Next:          1,
+		})
 	}
 
 	writer := bytes.NewBuffer([]byte{})
@@ -110,13 +91,12 @@ func onReadDirPlus(ctx context.Context, w *response, userHandle Handler) error {
 		return &NFSStatusError{NFSStatusServerFault, err}
 	}
 
-	var fixedVerif [8]byte
-	copy(fixedVerif[:], verif)
-	if err := xdr.Write(writer, fixedVerif); err != nil {
+	cookieVerifcation := [8]byte{}
+	if err := xdr.Write(writer, cookieVerifcation); err != nil {
 		return &NFSStatusError{NFSStatusServerFault, err}
 	}
 
-	if obj.Cookie == 0 {
+	if isFirstRead {
 		// prefix the special "." and ".." entries.
 		if err := xdr.Write(writer, uint32(1)); err != nil { //next
 			return &NFSStatusError{NFSStatusServerFault, err}
@@ -162,7 +142,7 @@ func onReadDirPlus(ctx context.Context, w *response, userHandle Handler) error {
 			return &NFSStatusError{NFSStatusServerFault, err}
 		}
 	}
-	if len(entities) > 0 || obj.Cookie == 0 {
+	if len(entities) > 0 || isFirstRead {
 		if err := xdr.Write(writer, uint32(1)); err != nil { // next
 			return &NFSStatusError{NFSStatusServerFault, err}
 		}
@@ -176,11 +156,11 @@ func onReadDirPlus(ctx context.Context, w *response, userHandle Handler) error {
 			return &NFSStatusError{NFSStatusServerFault, err}
 		}
 	}
-	eof := uint32(1)
-	if !started {
-		eof = 0
+	isEof := uint32(0)
+	if len(entities) == 0 || i == len(contents) {
+		isEof = 1
 	}
-	if err := xdr.Write(writer, eof); err != nil {
+	if err := xdr.Write(writer, isEof); err != nil {
 		return &NFSStatusError{NFSStatusServerFault, err}
 	}
 	// TODO: track writer size at this point to validate maxcount estimation and stop early if needed.
